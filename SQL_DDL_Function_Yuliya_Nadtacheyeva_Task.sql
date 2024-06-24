@@ -28,31 +28,26 @@ SELECT * FROM sales_revenue_by_category_qtr;
 -- 2 Create a query language function called "get_sales_revenue_by_category_qtr" that accepts one parameter
 -- representing the current quarter and returns the same result as the "sales_revenue_by_category_qtr" view.
 
+
 CREATE OR REPLACE FUNCTION get_sales_revenue_by_category_qtr(input_date DATE)
     RETURNS TABLE(category TEXT, total_revenue NUMERIC) AS $$
-DECLARE
-    current_quarter_start TIMESTAMPTZ;
-BEGIN
-    current_quarter_start := date_trunc('quarter', input_date)::timestamptz;
+SELECT
+    c.name AS category,
+    SUM(p.amount) AS total_revenue
+FROM
+    payment p
+        JOIN rental r ON p.rental_id = r.rental_id
+        JOIN inventory i ON r.inventory_id = i.inventory_id
+        JOIN film_category fc ON i.film_id = fc.film_id
+        JOIN category c ON fc.category_id = c.category_id
+WHERE
+    r.rental_date >= date_trunc('quarter', input_date)::timestamptz
+GROUP BY
+    c.name
+HAVING
+    COUNT(p.payment_id) > 0;
+$$ LANGUAGE sql;
 
-    RETURN QUERY
-        SELECT
-            c.name AS category,
-            SUM(p.amount) AS total_revenue
-        FROM
-            payment p
-                JOIN rental r ON p.rental_id = r.rental_id
-                JOIN inventory i ON r.inventory_id = i.inventory_id
-                JOIN film_category fc ON i.film_id = fc.film_id
-                JOIN category c ON fc.category_id = c.category_id
-        WHERE
-            r.rental_date >= current_quarter_start
-        GROUP BY
-            c.name
-        HAVING
-            COUNT(p.payment_id) > 0;
-END;
-$$ LANGUAGE plpgsql;
 
 SELECT * FROM get_sales_revenue_by_category_qtr(CURRENT_DATE);
 
@@ -137,7 +132,3 @@ $$ LANGUAGE plpgsql;
 
 SELECT new_movie('New Movie to make a check');
 SELECT * FROM film WHERE title = 'New Movie to make a check';
-
-
-
-
